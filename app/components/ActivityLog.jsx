@@ -193,6 +193,69 @@ function Step4({ onExecute, loading }) {
   )
 }
 
+
+function Step5({ expectedNewOwner, address, isNewSignerConnected, onConfirm, short }) {
+  return (
+    <div className={`${isNewSignerConnected ? 'bg-[#0D2818]' : 'bg-[#241E13]'} border ${isNewSignerConnected ? 'border-[#00d1a0]' : 'border-[#f5d939]/30'} rounded-[16px] p-[24px] w-full flex gap-[16px] items-start transition-colors duration-300`}>
+      {/* Icon */}
+      <div className="relative shrink-0 size-[48px] flex-shrink-0">
+        <div className={`absolute left-0 rounded-full size-[48px] top-0 ${isNewSignerConnected ? 'bg-[rgba(0,209,160,0.4)]' : 'bg-[#f5d939] opacity-40'}`} />
+        <div className={`absolute left-[12px] top-[12px] w-[24px] h-[24px] rounded-full ${isNewSignerConnected ? 'bg-[#00d1a0]' : 'bg-[#f5d939]'}`} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col gap-[8px]">
+        <p className="text-[#f9faf9] text-[18px] font-bold font-['Inter'] leading-[1.2]">
+          {isNewSignerConnected ? 'New Signer Connected!' : 'Switch to New Signer'}
+        </p>
+        {!isNewSignerConnected ? (
+          <>
+            <p className="text-[#7c847b] text-[14px] font-normal font-['Inter'] leading-[1.4]">
+              Rotation completed. The new owner is:
+            </p>
+            <p className="text-[#f5d939] text-[14px] font-mono font-['Inter'] leading-[1.4] break-all">
+              {expectedNewOwner}
+            </p>
+            <p className="text-[#7c847b] text-[14px] font-normal font-['Inter'] leading-[1.4]">
+              Open MetaMask and switch to this account before starting a new rotation.
+            </p>
+            {address && (
+              <p className="text-[#7c847b] text-[12px] font-normal font-['Inter'] leading-[1.4] mt-[4px]">
+                Currently connected: <span className="text-[#f9faf9]">{short ? short(address) : address}</span>
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-[#00d1a0] text-[14px] font-normal font-['Inter'] leading-[1.4]">
+            You are now connected with the correct signer. Click &quot;Next&quot; to start a new rotation cycle.
+          </p>
+        )}
+      </div>
+
+      {/* Right Section */}
+      <div className="flex flex-col gap-[16px] items-end justify-center h-auto shrink-0">
+        <div className={`${isNewSignerConnected ? 'bg-[rgba(0,209,160,0.2)]' : 'bg-[rgba(161,166,160,0.2)]'} px-[12px] py-[12px] rounded-full`}>
+          <p className={`${isNewSignerConnected ? 'text-[#00d1a0]' : 'text-[#a1a6a0]'} text-[12px] font-bold font-['Inter'] leading-[1.2]`}>Step 5</p>
+        </div>
+        {isNewSignerConnected ? (
+          <button
+            onClick={onConfirm}
+            className="flex items-center gap-[8px] cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            <p className="text-[#00d1a0] text-[14px] font-medium font-['Inter'] leading-[1.2] underline">
+              Next — Start New Cycle
+            </p>
+          </button>
+        ) : (
+          <p className="text-[#f5d939] text-[12px] font-normal font-['Inter'] leading-[1.2] animate-pulse">
+            ⏳ Waiting for switch…
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 export function ActivityLog({
@@ -204,8 +267,15 @@ export function ActivityLog({
   onSetStep,
   onExecute,
   loading,
+  expectedNewOwner,
+  onConfirmNewSigner,
+  short,
 }) {
-  const progress = Math.round((currentStep / 4) * 100)
+  const totalSteps = currentStep >= 4 ? 5 : 4
+  const progress = Math.round((Math.min(currentStep, totalSteps) / totalSteps) * 100)
+
+  const isNewSignerConnected = expectedNewOwner && address &&
+    address.toLowerCase() === expectedNewOwner.toLowerCase()
 
   const stepState = (idx) => {
     if (idx < currentStep) return 'Complete'
@@ -259,7 +329,7 @@ export function ActivityLog({
         <div className="flex flex-col gap-[8px] w-full">
           <div className="flex items-center justify-between">
             <p className="text-[#7c847b] text-[12px] font-normal font-['Inter'] leading-[1.2]">
-              Step {Math.min(currentStep + 1, 4)} of 4
+              Step {Math.min(currentStep + 1, totalSteps)} of {totalSteps}
             </p>
             <p className="text-[#00d1a0] text-[12px] font-normal font-['Inter'] leading-[1.2]">
               {progress}% Complete
@@ -281,6 +351,9 @@ export function ActivityLog({
           <ProgressStepCard step="Step 2" name="Create New" state={stepState(1)} onClick={() => handleStepClick(1)} />
           <ProgressStepCard step="Step 3" name="Switch"     state={stepState(2)} onClick={() => handleStepClick(2)} />
           <ProgressStepCard step="Step 4" name="Ready!"     state={stepState(3)} onClick={() => handleStepClick(3)} />
+          {currentStep >= 4 && (
+            <ProgressStepCard step="Step 5" name="New Signer" state={stepState(4)} />
+          )}
         </div>
       </div>
 
@@ -289,6 +362,15 @@ export function ActivityLog({
       {currentStep === 1 && <Step2 address={address} originalAddress={originalAddress} />}
       {currentStep === 2 && <Step3 address={address} originalAddress={originalAddress} />}
       {currentStep === 3 && <Step4 onExecute={onExecute} loading={loading} />}
+      {currentStep === 4 && (
+        <Step5
+          expectedNewOwner={expectedNewOwner}
+          address={address}
+          isNewSignerConnected={isNewSignerConnected}
+          onConfirm={onConfirmNewSigner}
+          short={short}
+        />
+      )}
 
       {/* Completed Steps */}
       {currentStep > 0 && (
@@ -343,6 +425,24 @@ export function ActivityLog({
               <div className="bg-[rgba(0,209,160,0.2)] px-[12px] py-[12px] rounded-full ml-auto">
                 <p className="text-[#00d1a0] text-[12px] font-bold font-['Inter'] leading-[1.2]">
                   Step 3
+                </p>
+              </div>
+            </div>
+          )}
+          {currentStep > 3 && (
+            <div className="bg-[rgba(0,209,160,0.2)] border border-[#00d1a0] flex gap-[16px] items-center opacity-40 p-[24px] w-full rounded-[16px]">
+              <div className="relative shrink-0 size-[48px]">
+                <div className="absolute bg-[rgba(0,209,160,0.4)] left-0 rounded-full size-[48px] top-0" />
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[20px]">
+                  <Image alt="check" src={checkBoldIcon} className="w-full h-full" />
+                </div>
+              </div>
+              <p className="text-[#00d1a0] text-[18px] font-bold font-['Inter'] leading-[1.2]">
+                Rotation executed successfully
+              </p>
+              <div className="bg-[rgba(0,209,160,0.2)] px-[12px] py-[12px] rounded-full ml-auto">
+                <p className="text-[#00d1a0] text-[12px] font-bold font-['Inter'] leading-[1.2]">
+                  Step 4
                 </p>
               </div>
             </div>

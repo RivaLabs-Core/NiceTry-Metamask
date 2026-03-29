@@ -157,11 +157,11 @@ export function ConnectWallet({
                   Transfer ETH
                 </p>
                 <p className="text-[#7c847b] text-[14px] font-normal font-['Inter'] leading-[1.4]">
-                  Execute trades and manage your funds
+                  Execute transaction and manage your funds
                 </p>
               </div>
               <button
-                onClick={() => { onRecipientChange('0x000000000000000000000000000000000000dEaD'); onAmountChange('0.001') }}
+                onClick={() => { onRecipientChange('0x000000000000000000000000000000000000dEaD'); onAmountChange('0') }}
                 disabled={loading}
                 className="text-[#3F56E3] text-[14px] font-medium font-['Inter'] leading-[1.2] underline whitespace-nowrap hover:opacity-80 transition-opacity disabled:opacity-40"
               >
@@ -371,7 +371,7 @@ export function ConnectWallet({
               Transfer ETH
             </p>
             <p className="font-normal text-[#7c847b] text-[14px] leading-[1.4] font-['Inter']">
-              Execute trades and manage your funds
+              Execute transaction and manage your funds
             </p>
           </div>
 

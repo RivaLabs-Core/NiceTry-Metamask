@@ -52,6 +52,8 @@ export async function createSmartAccount(walletClient) {
 }
 
 export async function rotation(walletClient, recipientAddress, nextOwnerAddress, amountWei) {
+ 
+  
   const contractAddress = localStorage.getItem('SmartAccount')
   const currentOwner    = walletClient?.account?.address
 

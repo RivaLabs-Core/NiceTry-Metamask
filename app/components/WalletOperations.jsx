@@ -19,10 +19,13 @@ export function WalletOperations({
   const metaMaskConnector = connectors.find(c => c.id === 'injected' || c.name === 'MetaMask')
 
   const handleConnect = () => {
+   
+    
     if (!metaMaskConnector) return
     onConnectAndCreate()
     connect({ connector: metaMaskConnector })
   }
+
 
   // ── Not connected ─────────────────────────────────────────────────────────
 
@@ -46,7 +49,7 @@ export function WalletOperations({
                   1. Connect Your Wallet
                 </p>
                 <p className="text-[#7c847b] text-[14px] font-normal font-['Inter'] leading-[1.4] mt-[8px]">
-                  Connect your external wallet to start trading
+                  Connect your external wallet to start use demo 
                 </p>
               </div>
               <button
@@ -72,7 +75,7 @@ export function WalletOperations({
                           Transfer ETH
                         </p>
                         <p className="text-[#7c847b] text-[14px] font-normal font-['Inter'] leading-[1.4]">
-                          Execute trades and manage your funds
+                          Execute transaction and manage your funds
                         </p>
                       </div>
                     

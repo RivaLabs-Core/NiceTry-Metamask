@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useAccount, useWalletClient, useDisconnect } from 'wagmi'
+import { useAccount, useWalletClient, useDisconnect, useSwitchChain } from 'wagmi'
 import { isAddress, formatEther, parseEther } from 'viem'
 
 import { ConnectWallet } from './components/ConnectWallet'
@@ -30,18 +30,20 @@ export default function Home() {
   const { address, isConnected } = useAccount()
   const { data: walletClient }   = useWalletClient({ chainId: 11155111 })
   const { disconnect }           = useDisconnect()
+  const { switchChain }          = useSwitchChain()
   const { logs, log, clear }     = useLogger()
 
   const [accountAddress,    setAccountAddress]    = useState('')
   const [pool,              setPool]              = useState([])
   const [loading,           setLoading]           = useState(false)
   const [recipient,         setRecipient]         = useState('')
-  const [amount,            setAmount]            = useState('0.001')
+  const [amount,            setAmount]            = useState('0')
   const [balance,           setBalance]           = useState(null)
   const [rotations,         setRotations]         = useState([])
   const [lastTx,            setLastTx]            = useState(null)
   const [currentStep,       setCurrentStep]       = useState(0)
   const [originalAddress,   setOriginalAddress]   = useState('')
+  const [expectedNewOwner,  setExpectedNewOwner]  = useState('')
 
   const pendingCreateRef = useRef(false)
   const creatingRef      = useRef(false)
@@ -50,17 +52,20 @@ export default function Home() {
     const saved       = localStorage.getItem('SmartAccount') ?? ''
     const savedPool   = JSON.parse(localStorage.getItem('addresses') || '[]')
     const savedOrigin = localStorage.getItem('originalAddress') ?? ''
+    const savedExpected = localStorage.getItem('expectedNewOwner') ?? ''
     setAccountAddress(saved)
     setPool(savedPool)
     setOriginalAddress(savedOrigin)
+    setExpectedNewOwner(savedExpected)
+    if (savedExpected) setCurrentStep(4)
   }, [])
 
   const handleDisconnect = useCallback(() => {
     localStorage.removeItem('SmartAccount')
     localStorage.removeItem('addresses')
     localStorage.removeItem('originalAddress')
-    localStorage.removeItem('expectedNextOwner')
-    setAccountAddress(''); setPool([]); setOriginalAddress('')
+    localStorage.removeItem('expectedNewOwner')
+    setAccountAddress(''); setPool([]); setOriginalAddress(''); setExpectedNewOwner('')
     setBalance(null); setRotations([]); setLastTx(null)
     setCurrentStep(0); setRecipient(''); setAmount('0.001')
     setLoading(false); clear()
@@ -100,16 +105,23 @@ export default function Home() {
     if (currentStep === 1 && current !== original && pool.length >= 2) {
       log(`✓ New account detected: ${short(address)}`, 'success')
       setCurrentStep(2)
+      setLoading(false)
     }
     if (currentStep === 2 && current === original) {
       log(`✓ Switched back to original account: ${short(address)}`, 'success')
       setCurrentStep(3)
+      setLoading(false)
     }
   }, [address, isConnected, currentStep, pool, originalAddress, log])
 
   const handleCreate = useCallback(async (wc) => {
     const client = wc || walletClient
-    if (!client?.account?.address) { log('walletClient not ready', 'error'); setLoading(false); return }
+    if (!client?.account?.address) {
+      try { await switchChain({ chainId: 11155111 }) } catch {}
+      log('Please switch MetaMask to Sepolia and try again', 'error')
+      setLoading(false)
+      return
+    }
     if (creatingRef.current) return
     creatingRef.current = true
     setLoading(true)
@@ -123,7 +135,7 @@ export default function Home() {
       log(`✓ Smart account: ${account.address}`, 'success')
     } catch (err) { log(`ERROR: ${err.message}`, 'error') }
     finally { setLoading(false); creatingRef.current = false }
-  }, [walletClient, log])
+  }, [walletClient, log, switchChain])
 
   useEffect(() => {
     if (!pendingCreateRef.current) return
@@ -138,6 +150,7 @@ export default function Home() {
       handleCreate(walletClient)
       return
     }
+    if (accountAddress) return
     pendingCreateRef.current = true
     setLoading(true)
     log('Connecting to MetaMask…', 'step')
@@ -145,8 +158,30 @@ export default function Home() {
 
   const onSetStep = useCallback((step) => { setCurrentStep(step) }, [])
 
+  const handleConfirmNewSigner = useCallback(() => {
+    if (!address || !expectedNewOwner) return
+    if (address.toLowerCase() !== expectedNewOwner.toLowerCase()) return
+    setExpectedNewOwner('')
+    localStorage.removeItem('expectedNewOwner')
+    setOriginalAddress(address)
+    localStorage.setItem('originalAddress', address)
+    setPool([address])
+    localStorage.setItem('addresses', JSON.stringify([address]))
+    setCurrentStep(0)
+    log('═══ NEW SIGNER CONFIRMED ✓ — Ready for new rotation ═══', 'success')
+  }, [address, expectedNewOwner, log])
+
   const handleExecute = async () => {
-    if (!walletClient?.account?.address) { log('walletClient not ready', 'error'); return }
+    if (!walletClient?.account?.address) {
+      log('Wrong network — switching to Sepolia…', 'step')
+      try {
+        await switchChain({ chainId: 11155111 })
+        log('Switched to Sepolia. Please click Execute again.', 'info')
+      } catch (err) {
+        log(`Please switch MetaMask to Sepolia (chainId 11155111)`, 'error')
+      }
+      return
+    }
     if (!isAddress(recipient)) { log('Invalid recipient', 'error'); return }
     setLoading(true)
     try {
@@ -154,7 +189,7 @@ export default function Home() {
       const currentPool = JSON.parse(localStorage.getItem('addresses') || '[]')
       const currentAddress = walletClient.account.address.toLowerCase()
       const nextOwner = currentPool.find(a => a.toLowerCase() !== currentAddress)
-      if (!nextOwner) { log('⚠ No next owner in pool!', 'error'); return }
+      if (!nextOwner) { log('⚠ No next owner in pool!', 'error'); setLoading(false); return }
 
       log(`Current owner: ${short(walletClient.account.address)}`, 'data')
       log(`Next owner:    ${short(nextOwner)}`, 'data')
@@ -175,8 +210,10 @@ export default function Home() {
       localStorage.setItem('originalAddress', result.newOwner)
       setRecipient(''); setAmount('0.001')
       await refreshBalance()
-      setCurrentStep(0)
-      log('═══ ROTATION COMPLETED ✓ — Repeat from Step 1 ═══', 'success')
+      setExpectedNewOwner(result.newOwner)
+      localStorage.setItem('expectedNewOwner', result.newOwner)
+      setCurrentStep(4)
+      log(`═══ ROTATION COMPLETED ✓ — Switch to new signer ${short(result.newOwner)} ═══`, 'success')
     } catch (err) { log(`ERROR: ${err.message}`, 'error') }
     finally { setLoading(false) }
   }
@@ -261,6 +298,9 @@ export default function Home() {
               onSetStep={onSetStep}
               onExecute={handleExecute}
               loading={loading}
+              expectedNewOwner={expectedNewOwner}
+              onConfirmNewSigner={handleConfirmNewSigner}
+              short={short}
             />
           </div>
         </div>
