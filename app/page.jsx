@@ -45,8 +45,9 @@ export default function Home() {
   const [originalAddress,   setOriginalAddress]   = useState('')
   const [expectedNewOwner,  setExpectedNewOwner]  = useState('')
 
-  const pendingCreateRef = useRef(false)
-  const creatingRef      = useRef(false)
+  const pendingCreateRef  = useRef(false)
+  const creatingRef       = useRef(false)
+  const disconnectingRef  = useRef(false)
 
   useEffect(() => {
     const saved       = localStorage.getItem('SmartAccount') ?? ''
@@ -61,15 +62,24 @@ export default function Home() {
   }, [])
 
   const handleDisconnect = useCallback(() => {
+    disconnectingRef.current = true
+    // Clear all app state from localStorage
     localStorage.removeItem('SmartAccount')
     localStorage.removeItem('addresses')
     localStorage.removeItem('originalAddress')
     localStorage.removeItem('expectedNewOwner')
+    // Clear wagmi's cached connection so it doesn't auto-reconnect old accounts
+    localStorage.removeItem('wagmi.store')
+    localStorage.removeItem('wagmi.connected')
+    localStorage.removeItem('wagmi.wallet')
+    localStorage.removeItem('wagmi.recentConnectorId')
     setAccountAddress(''); setPool([]); setOriginalAddress(''); setExpectedNewOwner('')
     setBalance(null); setRotations([]); setLastTx(null)
     setCurrentStep(0); setRecipient(''); setAmount('0.001')
     setLoading(false); clear()
     disconnect()
+    // Keep the guard up long enough for wagmi's async events to settle
+    setTimeout(() => { disconnectingRef.current = false }, 100)
   }, [disconnect, clear])
 
   useEffect(() => {
@@ -86,17 +96,27 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!address) return
-    if (!originalAddress && isConnected) setOriginalAddress(address)
+    // Block any pool writes during disconnect transition
+    if (disconnectingRef.current) return
+    if (!address || !isConnected) return
+    // Don't add addresses until a smart account exists
+    if (!accountAddress) return
+    if (!originalAddress) setOriginalAddress(address)
     setPool(prev => {
       const already = prev.map(a => a.toLowerCase()).includes(address.toLowerCase())
       if (already) return prev
+      // Pool must never exceed 2: current signer + next signer
+      if (prev.length >= 2) {
+        log(`⚠ Pool full (2 addresses) — ignoring ${short(address)}`, 'info')
+        return prev
+      }
       const updated = [...prev, address]
       localStorage.setItem('addresses', JSON.stringify(updated))
+      localStorage.setItem('test', JSON.stringify(updated))
       log(`✚ Address added to pool: ${short(address)}`, 'success')
       return updated
     })
-  }, [address, isConnected, log])
+  }, [address, isConnected, accountAddress, log])
 
   useEffect(() => {
     if (!address || !isConnected || !originalAddress) return
